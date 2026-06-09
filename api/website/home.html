@@ -561,6 +561,9 @@
       <button class="api-source-btn" data-source="hosted" onclick="setApiSource('hosted')">
         <i class="fas fa-cloud"></i> Cloud
       </button>
+      <button class="api-source-btn" data-source="rs-cloud" onclick="setApiSource('rs-cloud')">
+        <i class="fas fa-bolt"></i> RS Cloud
+      </button>
       <button class="api-source-btn" data-source="local" onclick="setApiSource('local')">
         <i class="fas fa-laptop-code"></i> Local
       </button>
@@ -648,7 +651,7 @@
   </section>
 
   <footer>
-    Patched v1.0 &mdash; inspired by <a href="https://github.com/devfemibadmus/mediasaver" target="_blank" rel="noopener">devfemibadmus/mediasaver</a>. For educational purposes only. <span style="opacity:0.4">Patched 2026-06-09</span>
+    Patched v1.0 &mdash; inspired by <a href="https://github.com/devfemibadmus/mediasaver" target="_blank" rel="noopener">devfemibadmus/mediasaver</a>. For educational purposes only. <span style="opacity:0.4">Patched 2026-06-09 (RS Cloud)</span>
   </footer>
 </div>
 
@@ -704,40 +707,51 @@ const PLATFORMS = {
 // MOCK_MEDIA removed — using real API only
 // Auto-detect local API URL based on current hostname
 function getLocalApiUrl() {
-  const host = window.location.hostname || '127.0.0.1';
-  return `http://${host}:8080/api/`;
+  const host = window.location.hostname;
+  // If opened locally (your Mac), use the local API
+  if (host === '127.0.0.1' || host.endsWith('.local') || host.match(/^192\.168\./)) {
+    return `http://${host}:8080/api/`;
+  }
+  // If opened publicly, use your RS Cloud API
+  return 'https://rssocial.fly.dev/api/';
 }
 
 // ──────────────────────────────────────────
 // API Configuration — Hybrid Mode
 // ──────────────────────────────────────────
 const API_CONFIG = {
-  // Order matters: first successful response wins
+  // 3-tier fallback: RS Cloud → MediaSaver Cloud → Local
   endpoints: [
     {
-      name: 'Hosted API',
+      name: 'RS Cloud API',
+      url: 'https://rssocial.fly.dev/api/',
+      timeout: 10000
+    },
+    {
+      name: 'MediaSaver API',
       url: 'https://mediasaver.link/api/',
-      timeout: 8000  // 8 seconds before giving up
+      timeout: 8000
     },
     {
       name: 'Local API',
-      url: 'http://127.0.0.1:8000/api/',
-      timeout: 3000  // 3 seconds (local should be fast)
+      url: getLocalApiUrl(),
+      timeout: 3000
     }
   ],
-  // Which endpoint is currently active (auto-detected)
   activeEndpoint: null,
-  // Remember working endpoint in sessionStorage
   rememberWorking: true
 };
 // ──────────────────────────────────────────
 // API code samples
 // ──────────────────────────────────────────
 const API_SAMPLES = {
-  get: `<span class="comment"># GET request — simple and quick</span>
+  get: `<span class="comment"># GET request — RS Cloud API</span>
+curl <span class="string">"https://rssocial.fly.dev/api/?url=YOUR_MEDIA_URL"</span>
+
+<span class="comment"># GET request — MediaSaver API (backup)</span>
 curl <span class="string">"https://mediasaver.link/api/?url=YOUR_MEDIA_URL"</span>`,
-  post: `<span class="comment"># POST request — JSON body</span>
-curl -X POST <span class="string">https://mediasaver.link/api/</span> \\
+  post: `<span class="comment"># POST request — RS Cloud API</span>
+curl -X POST <span class="string">https://rssocial.fly.dev/api/</span> \\
   -H <span class="string">"Content-Type: application/json"</span> \\
   -d <span class="string">'{"url":"YOUR_MEDIA_URL"}'</span>`,
   response: `<span class="comment"># Success response</span>
@@ -1210,7 +1224,6 @@ let apiSourcePreference = 'auto';
 function setApiSource(source) {
   apiSourcePreference = source;
 
-  // Update button styles
   document.querySelectorAll('.api-source-btn').forEach(btn => {
     if (btn.dataset.source === source) {
       btn.classList.add('active');
@@ -1219,20 +1232,21 @@ function setApiSource(source) {
     }
   });
 
-  // Rebuild endpoints list based on preference
   if (source === 'hosted') {
     API_CONFIG.endpoints = [
-      { name: 'Hosted API', url: 'https://mediasaver.link/api/', timeout: 8000 }
+      { name: 'RS Cloud API', url: 'https://rssocial.fly.dev/api/', timeout: 10000 },
+      { name: 'MediaSaver API', url: 'https://mediasaver.link/api/', timeout: 8000 }
     ];
   } else if (source === 'local') {
     API_CONFIG.endpoints = [
-      { name: 'Local API', url: '' + getLocalApiUrl() + '', timeout: 3000 }
+      { name: 'Local API', url: getLocalApiUrl(), timeout: 3000 }
     ];
   } else {
-    // Auto: try both with fallback
+    // Auto: try all three in order
     API_CONFIG.endpoints = [
-      { name: 'Hosted API', url: 'https://mediasaver.link/api/', timeout: 8000 },
-      { name: 'Local API', url: 'http://127.0.0.1:8000/api/', timeout: 3000 }
+      { name: 'RS Cloud API', url: 'https://rssocial.fly.dev/api/', timeout: 10000 },
+      { name: 'MediaSaver API', url: 'https://mediasaver.link/api/', timeout: 8000 },
+      { name: 'Local API', url: getLocalApiUrl(), timeout: 3000 }
     ];
   }
 
@@ -1346,18 +1360,33 @@ function initParticles() {
 function updateApiStatusIndicator(endpoint) {
   const statusBar = document.getElementById('apiStatusBar');
   const statusText = document.getElementById('apiStatusText');
-  const statusIcon = statusBar.querySelector('i');
+  const statusIcon = statusBar?.querySelector('i');
   
   if (!statusBar) return;
   
   if (endpoint) {
-    const isLocal = endpoint.url.includes('localhost');
-    const color = isLocal ? 'var(--success)' : 'var(--accent)';
-    const label = isLocal ? 'Local Server' : 'Cloud Server';
-    const icon = isLocal ? 'fa-laptop-code' : 'fa-cloud';
+    const isLocal = endpoint.url.includes('127.0.0.1') || endpoint.url.includes('localhost');
+    const isRSCloud = endpoint.url.includes('rssocial.fly.dev');
     
-    statusBar.style.borderColor = `rgba(${isLocal ? '52,211,153' : '255,107,61'}, 0.2)`;
-    statusBar.style.background = `rgba(${isLocal ? '52,211,153' : '255,107,61'}, 0.05)`;
+    let color, label, icon;
+    if (isLocal) {
+      color = 'var(--success)';
+      label = 'Local Server';
+      icon = 'fa-laptop-code';
+    } else if (isRSCloud) {
+      color = '#fbbf24';
+      label = 'RS Cloud';
+      icon = 'fa-bolt';
+    } else {
+      color = 'var(--accent)';
+      label = 'Cloud Server';
+      icon = 'fa-cloud';
+    }
+    
+    const rgb = isLocal ? '52,211,153' : isRSCloud ? '251,191,36' : '255,107,61';
+    
+    statusBar.style.borderColor = `rgba(${rgb}, 0.2)`;
+    statusBar.style.background = `rgba(${rgb}, 0.05)`;
     statusIcon.className = `fas ${icon}`;
     statusIcon.style.color = color;
     statusText.textContent = `Connected via ${label}`;

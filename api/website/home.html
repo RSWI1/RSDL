@@ -702,6 +702,12 @@ const PLATFORMS = {
 };
 
 // MOCK_MEDIA removed — using real API only
+// Auto-detect local API URL based on current hostname
+function getLocalApiUrl() {
+  const host = window.location.hostname || '127.0.0.1';
+  return `http://${host}:8080/api/`;
+}
+
 // ──────────────────────────────────────────
 // API Configuration — Hybrid Mode
 // ──────────────────────────────────────────
@@ -1220,7 +1226,7 @@ function setApiSource(source) {
     ];
   } else if (source === 'local') {
     API_CONFIG.endpoints = [
-      { name: 'Local API', url: 'http://127.0.0.1:8080/api/', timeout: 3000 }
+      { name: 'Local API', url: '' + getLocalApiUrl() + '', timeout: 3000 }
     ];
   } else {
     // Auto: try both with fallback

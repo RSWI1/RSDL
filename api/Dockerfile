@@ -1,5 +1,9 @@
 # 1. Build Stage
-FROM rust:1.78-slim AS builder
+FROM rust:1.85-slim AS builder
+
+# Install build dependencies for OpenSSL
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /usr/src/mediasaver
 COPY Cargo.toml Cargo.lock ./
 # Cache dependencies

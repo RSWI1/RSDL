@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediaSaver — Download Any Media, No Watermark</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+  :root {
+    --bg: #0c0e12;
+    --bg-elevated: #13161c;
+    --bg-card: #181b23;
+    --fg: #eef0f4;
+    --fg-muted: #7a8299;
+    --accent: #ff6b3d;
+    --accent-glow: rgba(255, 107, 61, 0.25);
+    --accent-secondary: #fbbf24;
+    --success: #34d399;
+    --error: #f87171;
+    --border: rgba(255,255,255,0.06);
+    --radius: 14px;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-display);
+    background: var(--bg);
+    color: var(--fg);
+    min-height: 100vh;
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* Animated background */
+  .bg-scene {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    overflow: hidden;
+  }
+  .bg-blob {
+    position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.35;
+    animation: blobFloat 18s ease-in-out infinite alternate;
+  }
+  .bg-blob:nth-child(1) {
+    width: 600px; height: 600px; background: var(--accent);
+    top: -15%; left: -10%; animation-duration: 20s;
+  }
+  .bg-blob:nth-child(2) {
+    width: 500px; height: 500px; background: #7c3aed;
+    bottom: -20%; right: -10%; animation-duration: 24s; animation-delay: -5s;
+  }
+  .bg-blob:nth-child(3) {
+    width: 350px; height: 350px; background: var(--accent-secondary);
+    top: 40%; left: 50%; animation-duration: 16s; animation-delay: -10s;
+  }
+  @keyframes blobFloat {
+    0% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(40px, -30px) scale(1.1); }
+    66% { transform: translate(-20px, 40px) scale(0.9); }
+    100% { transform: translate(30px, -20px) scale(1.05); }
+  }
+
+  /* Grid noise overlay */
+  .bg-noise {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .app-wrapper {
+    position: relative; z-index: 2;
+    max-width: 960px; margin: 0 auto; padding: 24px 20px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 0 40px; gap: 16px; flex-wrap: wrap;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px;
+  }
+  .logo-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; color: #000; box-shadow: 0 4px 20px var(--accent-glow);
+  }
+  .header-actions { display: flex; gap: 8px; }
+  .header-actions button {
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--fg-muted); padding: 8px 14px; border-radius: 10px;
+    cursor: pointer; font-family: var(--font-display); font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+  .header-actions button:hover { color: var(--fg); border-color: rgba(255,255,255,0.15); }
+  .header-actions button.active { color: var(--accent); border-color: var(--accent); background: rgba(255,107,61,0.08); }
+
+  /* Hero */
+  .hero { text-align: center; padding: 20px 0 50px; }
+  .hero h1 {
+    font-size: clamp(2.2rem, 6vw, 3.6rem); font-weight: 700;
+    letter-spacing: -1.5px; line-height: 1.1; margin-bottom: 16px;
+  }
+  .hero h1 span {
+    background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p { color: var(--fg-muted); font-size: 1.1rem; max-width: 520px; margin: 0 auto; }
+
+  /* Input area */
+  .input-section {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 28px; margin-bottom: 32px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+    transition: border-color 0.3s;
+  }
+  .input-section:focus-within { border-color: rgba(255,107,61,0.3); }
+
+  .input-row {
+    display: flex; gap: 10px; align-items: stretch;
+  }
+  .url-wrapper {
+    flex: 1; position: relative;
+  }
+  .url-wrapper i {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: var(--fg-muted); font-size: 1rem; transition: color 0.2s;
+  }
+  .url-wrapper:focus-within i { color: var(--accent); }
+  #urlInput {
+    width: 100%; padding: 14px 16px 14px 44px;
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--fg); font-family: var(--font-mono);
+    font-size: 0.95rem; outline: none; transition: all 0.2s;
+  }
+  #urlInput::placeholder { color: var(--fg-muted); font-family: var(--font-display); }
+  #urlInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+  .btn-download {
+    padding: 14px 28px; background: linear-gradient(135deg, var(--accent), #e85d2a);
+    color: #fff; border: none; border-radius: 12px; font-family: var(--font-display);
+    font-size: 0.95rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: all 0.25s; box-shadow: 0 4px 20px var(--accent-glow);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .btn-download:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(255,107,61,0.4); }
+  .btn-download:active { transform: translateY(0); }
+  .btn-download:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Platform detection badge */
+  .platform-badge {
+    display: none; align-items: center; gap: 8px; margin-top: 14px;
+    padding: 8px 14px; border-radius: 10px; font-size: 0.85rem; font-weight: 500;
+    background: rgba(255,107,61,0.08); border: 1px solid rgba(255,107,61,0.15);
+    color: var(--accent);
+  }
+  .platform-badge.show { display: inline-flex; }
+  .platform-badge i { font-size: 1.1rem; }
+
+  /* Result area */
+  .result-section {
+    display: none; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 28px; margin-bottom: 32px;
+    animation: slideUp 0.4s ease;
+  }
+  .result-section.show { display: block; }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+  }
+  .result-header h3 { font-size: 1.1rem; font-weight: 600; }
+  .result-meta {
+    display: flex; align-items: center; gap: 6px; font-size: 0.8rem;
+    color: var(--fg-muted); background: var(--bg-elevated);
+    padding: 5px 12px; border-radius: 8px;
+  }
+  .result-meta i { color: var(--accent); }
+
+  .media-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .media-card {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; transition: all 0.25s;
+    cursor: pointer; position: relative;
+  }
+  .media-card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+
+  .media-thumb {
+    width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block;
+    background: var(--bg);
+  }
+  .media-thumb-placeholder {
+    width: 100%; aspect-ratio: 16/10; display: flex; align-items: center;
+    justify-content: center; background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card));
+    color: var(--fg-muted); font-size: 2rem;
+  }
+  .media-info {
+    padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .media-type {
+    font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--fg-muted);
+  }
+  .media-type.video { color: var(--accent); }
+  .media-type.image { color: var(--success); }
+
+  .btn-save {
+    padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer;
+    font-family: var(--font-display); font-size: 0.8rem; font-weight: 600;
+    background: rgba(255,107,61,0.12); color: var(--accent);
+    transition: all 0.2s; display: flex; align-items: center; gap: 5px;
+  }
+  .btn-save:hover { background: rgba(255,107,61,0.2); }
+  .btn-save.saved { background: rgba(52,211,153,0.12); color: var(--success); pointer-events: none; }
+
+  /* Progress bar */
+  .progress-container {
+    display: none; margin-top: 18px;
+  }
+  .progress-container.show { display: block; }
+  .progress-bar-bg {
+    width: 100%; height: 6px; background: var(--bg-elevated);
+    border-radius: 3px; overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; width: 0%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+    transition: width 0.3s ease;
+  }
+  .progress-text {
+    font-size: 0.8rem; color: var(--fg-muted); margin-top: 8px;
+    font-family: var(--font-mono);
+  }
+
+  /* Platforms grid */
+  .platforms-section { margin-bottom: 40px; }
+  .section-title {
+    font-size: 1.3rem; font-weight: 700; margin-bottom: 20px;
+    letter-spacing: -0.5px;
+  }
+  .platforms-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .platform-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px 16px; text-align: center;
+    transition: all 0.25s; cursor: default;
+  }
+  .platform-card:hover { border-color: rgba(255,255,255,0.1); transform: translateY(-2px); }
+  .platform-card i { font-size: 1.8rem; margin-bottom: 10px; display: block; }
+  .platform-card .name { font-weight: 600; font-size: 0.95rem; margin-bottom: 4px; }
+  .platform-card .status { font-size: 0.75rem; color: var(--success); font-weight: 500; }
+
+  .platform-card.fb i { color: #1877f2; }
+  .platform-card.ig i { color: #e4405f; }
+  .platform-card.tt i { color: #00f2ea; }
+  .platform-card.tw i { color: #fff; }
+  .platform-card.sc i { color: #fffc00; }
+  .platform-card.na i { color: #0b3d91; }
+
+  /* History section */
+  .history-section { margin-bottom: 40px; }
+  .history-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .history-list {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .history-item {
+    display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; transition: all 0.2s;
+  }
+  .history-item:hover { border-color: rgba(255,255,255,0.1); }
+  .history-icon {
+    width: 40px; height: 40px; border-radius: 10px; display: flex;
+    align-items: center; justify-content: center; font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .history-icon.fb { background: rgba(24,119,242,0.12); color: #1877f2; }
+  .history-icon.ig { background: rgba(228,64,95,0.12); color: #e4405f; }
+  .history-icon.tt { background: rgba(0,242,234,0.12); color: #00f2ea; }
+  .history-icon.tw { background: rgba(255,255,255,0.08); color: #fff; }
+  .history-icon.sc { background: rgba(255,252,0,0.1); color: #fffc00; }
+  .history-icon.na { background: rgba(11,61,145,0.15); color: #4a90d9; }
+  .history-details { flex: 1; min-width: 0; }
+  .history-url {
+    font-size: 0.85rem; font-family: var(--font-mono); color: var(--fg);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .history-time { font-size: 0.75rem; color: var(--fg-muted); margin-top: 2px; }
+  .history-count {
+    font-size: 0.75rem; font-weight: 600; color: var(--accent);
+    background: rgba(255,107,61,0.1); padding: 3px 10px; border-radius: 6px;
+  }
+  .history-empty {
+    text-align: center; padding: 40px 20px; color: var(--fg-muted);
+    font-size: 0.9rem;
+  }
+  .history-empty i { font-size: 2rem; margin-bottom: 10px; display: block; opacity: 0.4; }
+
+  .btn-clear {
+    padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--fg-muted); cursor: pointer;
+    font-family: var(--font-display); font-size: 0.8rem; transition: all 0.2s;
+  }
+  .btn-clear:hover { color: var(--error); border-color: rgba(248,113,113,0.3); }
+
+  /* API docs section */
+  .api-section {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 28px; margin-bottom: 40px;
+  }
+  .api-section h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
+  .api-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .api-tab {
+    padding: 6px 16px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--fg-muted); cursor: pointer;
+    font-family: var(--font-mono); font-size: 0.8rem; font-weight: 500;
+    transition: all 0.2s;
+  }
+  .api-tab.active { background: rgba(255,107,61,0.1); color: var(--accent); border-color: rgba(255,107,61,0.2); }
+  .api-code {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; font-family: var(--font-mono); font-size: 0.82rem;
+    color: var(--fg-muted); overflow-x: auto; line-height: 1.7;
+    white-space: pre;
+  }
+  .api-code .keyword { color: var(--accent); }
+  .api-code .string { color: var(--success); }
+  .api-code .comment { color: #555; }
+
+  /* Toast */
+  .toast-container {
+    position: fixed; top: 24px; right: 24px; z-index: 9999;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    padding: 12px 20px; border-radius: 12px; font-size: 0.85rem;
+    font-weight: 500; display: flex; align-items: center; gap: 10px;
+    animation: toastIn 0.35s ease; min-width: 260px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .toast.success { background: #065f46; color: #a7f3d0; border: 1px solid rgba(52,211,153,0.2); }
+  .toast.error { background: #7f1d1d; color: #fca5a5; border: 1px solid rgba(248,113,113,0.2); }
+  .toast.info { background: #1e3a5f; color: #93c5fd; border: 1px solid rgba(96,165,250,0.2); }
+  .toast.out { animation: toastOut 0.3s ease forwards; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
+
+  /* Footer */
+  footer {
+    text-align: center; padding: 32px 0; color: var(--fg-muted);
+    font-size: 0.8rem; border-top: 1px solid var(--border);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* Modal overlay */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 32px; max-width: 500px; width: 100%;
+    animation: slideUp 0.3s ease;
+  }
+  .modal h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 12px; }
+  .modal p { color: var(--fg-muted); font-size: 0.9rem; margin-bottom: 20px; line-height: 1.7; }
+  .modal-close {
+    padding: 10px 24px; border-radius: 10px; border: none;
+    background: var(--accent); color: #fff; cursor: pointer;
+    font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;
+  }
+
+  /* Particles canvas */
+  #particleCanvas {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .input-row { flex-direction: column; }
+    .btn-download { justify-content: center; }
+    .platforms-grid { grid-template-columns: repeat(2, 1fr); }
+    .media-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 2rem; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--bg-card); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+
+  /* API Source Toggle */
+  .api-source-bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-top: 12px; padding: 8px 0 0;
+    border-top: 1px solid var(--border);
+  }
+  .api-source-label {
+    font-size: 0.75rem; color: var(--fg-muted); font-weight: 500;
+  }
+  .api-source-btn {
+    padding: 4px 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--fg-muted); font-size: 0.75rem; cursor: pointer;
+    font-family: var(--font-display); transition: all 0.2s;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .api-source-btn:hover { border-color: rgba(255,255,255,0.15); color: var(--fg); }
+  .api-source-btn.active {
+    background: rgba(255,107,61,0.1); color: var(--accent);
+    border-color: rgba(255,107,61,0.25);
+  }
+
+  /* Empty results state */
+  .media-empty {
+    text-align: center; padding: 40px 20px; color: var(--fg-muted);
+    grid-column: 1 / -1;
+  }
+  .media-empty i { font-size: 2.5rem; margin-bottom: 12px; display: block; opacity: 0.3; }
+  .media-empty p { font-size: 0.9rem; }
+
+  /* Video preview overlay */
+  .video-thumb-wrap {
+    position: relative; width: 100%; aspect-ratio: 16/10;
+    background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card));
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; overflow: hidden;
+  }
+  .video-thumb-wrap:hover .video-play-icon { transform: scale(1.15); }
+  .video-play-icon {
+    font-size: 2.5rem; opacity: 0.8; transition: transform 0.2s;
+    color: #fff; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+  }
+  .video-badge {
+    position: absolute; bottom: 8px; right: 8px;
+    font-size: 0.6rem; background: rgba(0,0,0,0.75);
+    padding: 2px 8px; border-radius: 4px; color: #fff;
+    font-weight: 600; letter-spacing: 0.5px;
+  }
+  .video-duration {
+    position: absolute; bottom: 8px; left: 8px;
+    font-size: 0.6rem; background: rgba(0,0,0,0.75);
+    padding: 2px 6px; border-radius: 3px; color: #fff;
+  }
+
+  /* Status bar responsive */
+  #apiStatusBar {
+    margin-bottom: 16px !important;
+  }
+  @media (max-width: 640px) {
+    #apiStatusBar { font-size: 0.7rem; padding: 4px 10px; }
+    .api-source-bar { gap: 4px; }
+    .api-source-btn { padding: 3px 8px; font-size: 0.7rem; }
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Animated background -->
+<div class="bg-scene">
+  <div class="bg-blob"></div>
+  <div class="bg-blob"></div>
+  <div class="bg-blob"></div>
+</div>
+<div class="bg-noise"></div>
+<canvas id="particleCanvas"></canvas>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Disclaimer</h3>
+    <p id="modalBody">This tool is for educational purposes only. Use it responsibly and respect platform terms of service. Downloaded content belongs to its respective creators.</p>
+    <button class="modal-close" onclick="closeModal()">Got it</button>
+  </div>
+</div>
+
+<div class="app-wrapper">
+  <!-- Header -->
+  <!-- API Status Indicator -->
+  <div id="apiStatusBar" style="display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:10px; font-size:0.8rem; margin-bottom:20px; background:var(--bg-elevated); border:1px solid var(--border); transition:all 0.3s;">
+  <i class="fas fa-server" style="color:var(--fg-muted);"></i>
+  <span id="apiStatusText" style="color:var(--fg-muted);">Checking API availability...</span>
+  <button id="apiStatusToggle" onclick="resetApiPreference()" style="margin-left:auto; background:none; border:none; color:var(--fg-muted); cursor:pointer; font-size:0.75rem; padding:2px 8px; border-radius:4px; border:1px solid var(--border); font-family:var(--font-display);" title="Reset API preference">
+    <i class="fas fa-sync-alt"></i> Reset
+  </button>
+</div>
+
+  <header>
+    
+    <div class="logo">
+      <div class="logo-icon"><i class="fas fa-download"></i></div>
+      MediaSaver
+    </div>
+    <div class="header-actions">
+      <button id="btnThemeInfo" onclick="showModal('About MediaSaver', 'A front-end demonstration of a social media downloader. This HTML tool simulates the download flow with realistic interactions and platform detection. In a production environment, a backend API (like the Rust-based mediasaver.link) would handle actual media extraction.')">
+        <i class="fas fa-info-circle"></i> About
+      </button>
+      <button id="btnShowApi" onclick="scrollToApi()">
+        <i class="fas fa-code"></i> API
+      </button>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <h1>Save Media <span>Without Watermark</span></h1>
+    <p>Paste any link from Facebook, Instagram, TikTok, Twitter, or Snapchat and download photos and videos instantly.</p>
+  </section>
+
+  <!-- Input section -->
+  <section class="input-section" aria-label="URL input">
+    <div class="input-row">
+      <div class="url-wrapper">
+        <i class="fas fa-link"></i>
+        <input type="url" id="urlInput" placeholder="Paste a media URL here..." aria-label="Media URL" autocomplete="off" />
+      </div>
+      <button class="btn-download" id="btnFetch" onclick="fetchMedia()">
+        <i class="fas fa-arrow-down"></i> Fetch Media
+      </button>
+    </div>
+    <div class="platform-badge" id="platformBadge">
+      <i class="fab fa-instagram"></i>
+      <span id="platformName">Instagram detected</span>
+    </div>
+    <div class="api-source-bar" id="apiSourceBar">
+      <span class="api-source-label"><i class="fas fa-server" style="margin-right:4px"></i>API Source:</span>
+      <button class="api-source-btn active" data-source="auto" onclick="setApiSource('auto')">
+        <i class="fas fa-magic"></i> Auto
+      </button>
+      <button class="api-source-btn" data-source="hosted" onclick="setApiSource('hosted')">
+        <i class="fas fa-cloud"></i> Cloud
+      </button>
+      <button class="api-source-btn" data-source="local" onclick="setApiSource('local')">
+        <i class="fas fa-laptop-code"></i> Local
+      </button>
+    </div>
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText">Connecting...</div>
+    </div>
+  </section>
+
+  <!-- Result section -->
+  <section class="result-section" id="resultSection" aria-label="Download results">
+    <div class="result-header">
+      <h3 id="resultTitle">Found Media</h3>
+      <div class="result-meta">
+        <i class="fas fa-check-circle"></i>
+        <span id="resultCount">0 items</span>
+      </div>
+    </div>
+    <div class="media-grid" id="mediaGrid"></div>
+  </section>
+
+  <!-- Supported platforms -->
+  <section class="platforms-section" aria-label="Supported platforms">
+    <h2 class="section-title">Supported Platforms</h2>
+    <div class="platforms-grid">
+      <div class="platform-card fb">
+        <i class="fab fa-facebook"></i>
+        <div class="name">Facebook</div>
+        <div class="status"><i class="fas fa-circle" style="font-size:6px;vertical-align:middle;margin-right:4px"></i>Active</div>
+      </div>
+      <div class="platform-card ig">
+        <i class="fab fa-instagram"></i>
+        <div class="name">Instagram</div>
+        <div class="status"><i class="fas fa-circle" style="font-size:6px;vertical-align:middle;margin-right:4px"></i>Active</div>
+      </div>
+      <div class="platform-card tt">
+        <i class="fab fa-tiktok"></i>
+        <div class="name">TikTok</div>
+        <div class="status"><i class="fas fa-circle" style="font-size:6px;vertical-align:middle;margin-right:4px"></i>Active</div>
+      </div>
+      <div class="platform-card tw">
+        <i class="fab fa-x-twitter"></i>
+        <div class="name">Twitter / X</div>
+        <div class="status"><i class="fas fa-circle" style="font-size:6px;vertical-align:middle;margin-right:4px"></i>Active</div>
+      </div>
+      <div class="platform-card sc">
+        <i class="fab fa-snapchat"></i>
+        <div class="name">Snapchat</div>
+        <div class="status"><i class="fas fa-circle" style="font-size:6px;vertical-align:middle;margin-right:4px"></i>Active</div>
+      </div>
+      <div class="platform-card na">
+        <i class="fas fa-rocket"></i>
+        <div class="name">NASA</div>
+        <div class="status"><i class="fas fa-circle" style="font-size:6px;vertical-align:middle;margin-right:4px"></i>Active</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- History -->
+  <section class="history-section" aria-label="Download history">
+    <div class="history-header">
+      <h2 class="section-title" style="margin-bottom:0">Recent Downloads</h2>
+      <button class="btn-clear" id="btnClear" onclick="clearHistory()">
+        <i class="fas fa-trash-alt"></i> Clear
+      </button>
+    </div>
+    <div class="history-list" id="historyList">
+      <div class="history-empty">
+        <i class="fas fa-clock-rotate-left"></i>
+        No downloads yet. Paste a URL above to get started.
+      </div>
+    </div>
+  </section>
+
+  <!-- API Docs -->
+  <section class="api-section" id="apiSection" aria-label="API documentation">
+    <h3><i class="fas fa-terminal" style="color:var(--accent);margin-right:8px"></i>API Reference</h3>
+    <div class="api-tabs">
+      <button class="api-tab active" onclick="switchApiTab('get', this)">GET</button>
+      <button class="api-tab" onclick="switchApiTab('post', this)">POST</button>
+      <button class="api-tab" onclick="switchApiTab('response', this)">Response</button>
+    </div>
+    <div class="api-code" id="apiCode"></div>
+  </section>
+
+  <footer>
+    Patched v1.0 &mdash; inspired by <a href="https://github.com/devfemibadmus/mediasaver" target="_blank" rel="noopener">devfemibadmus/mediasaver</a>. For educational purposes only. <span style="opacity:0.4">Patched 2026-06-09</span>
+  </footer>
+</div>
+
+<script>
+// ──────────────────────────────────────────
+// Platform detection configuration
+// ──────────────────────────────────────────
+const PLATFORMS = {
+  facebook: {
+    patterns: [/facebook\.com/, /fb\.watch/, /fb\.com/],
+    icon: 'fab fa-facebook',
+    color: '#1877f2',
+    cls: 'fb',
+    name: 'Facebook'
+  },
+  instagram: {
+    patterns: [/instagram\.com/, /instagr\.am/],
+    icon: 'fab fa-instagram',
+    color: '#e4405f',
+    cls: 'ig',
+    name: 'Instagram'
+  },
+  tiktok: {
+    patterns: [/tiktok\.com/, /vm\.tiktok\.com/],
+    icon: 'fab fa-tiktok',
+    color: '#00f2ea',
+    cls: 'tt',
+    name: 'TikTok'
+  },
+  twitter: {
+    patterns: [/twitter\.com/, /x\.com/],
+    icon: 'fab fa-x-twitter',
+    color: '#ffffff',
+    cls: 'tw',
+    name: 'Twitter / X'
+  },
+  snapchat: {
+    patterns: [/snapchat\.com/, /snap\.com/],
+    icon: 'fab fa-snapchat',
+    color: '#fffc00',
+    cls: 'sc',
+    name: 'Snapchat'
+  },
+  nasa: {
+    patterns: [/svs\.gsfc\.nasa\.gov/, /images\.nasa\.gov/],
+    icon: 'fas fa-rocket',
+    color: '#4a90d9',
+    cls: 'na',
+    name: 'NASA'
+  }
+};
+
+// MOCK_MEDIA removed — using real API only
+// ──────────────────────────────────────────
+// API Configuration — Hybrid Mode
+// ──────────────────────────────────────────
+const API_CONFIG = {
+  // Order matters: first successful response wins
+  endpoints: [
+    {
+      name: 'Hosted API',
+      url: 'https://mediasaver.link/api/',
+      timeout: 8000  // 8 seconds before giving up
+    },
+    {
+      name: 'Local API',
+      url: 'http://127.0.0.1:8000/api/',
+      timeout: 3000  // 3 seconds (local should be fast)
+    }
+  ],
+  // Which endpoint is currently active (auto-detected)
+  activeEndpoint: null,
+  // Remember working endpoint in sessionStorage
+  rememberWorking: true
+};
+// ──────────────────────────────────────────
+// API code samples
+// ──────────────────────────────────────────
+const API_SAMPLES = {
+  get: `<span class="comment"># GET request — simple and quick</span>
+curl <span class="string">"https://mediasaver.link/api/?url=YOUR_MEDIA_URL"</span>`,
+  post: `<span class="comment"># POST request — JSON body</span>
+curl -X POST <span class="string">https://mediasaver.link/api/</span> \\
+  -H <span class="string">"Content-Type: application/json"</span> \\
+  -d <span class="string">'{"url":"YOUR_MEDIA_URL"}'</span>`,
+  response: `<span class="comment"># Success response</span>
+{
+  <span class="keyword">"data"</span>: [
+    <span class="string">"https://media-url-1.mp4"</span>,
+    <span class="string">"https://media-url-2.jpg"</span>
+  ],
+  <span class="keyword">"total"</span>: 2,
+  <span class="keyword">"platform"</span>: <span class="string">"tiktok"</span>
+}
+
+<span class="comment"># Error response</span>
+{
+  <span class="keyword">"error"</span>: true,
+  <span class="keyword">"message"</span>: <span class="string">"Unsupported URL"</span>
+}`
+};
+
+// ──────────────────────────────────────────
+// State
+// ──────────────────────────────────────────
+let history = JSON.parse(localStorage.getItem('ms_history') || '[]');
+let currentPlatform = null;
+
+// ──────────────────────────────────────────
+// DOM references
+// ──────────────────────────────────────────
+const urlInput = document.getElementById('urlInput');
+const platformBadge = document.getElementById('platformBadge');
+const platformName = document.getElementById('platformName');
+const progressContainer = document.getElementById('progressContainer');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+const resultSection = document.getElementById('resultSection');
+const resultTitle = document.getElementById('resultTitle');
+const resultCount = document.getElementById('resultCount');
+const mediaGrid = document.getElementById('mediaGrid');
+const historyList = document.getElementById('historyList');
+const btnFetch = document.getElementById('btnFetch');
+const apiCode = document.getElementById('apiCode');
+
+// ──────────────────────────────────────────
+// Initialize
+// ──────────────────────────────────────────
+apiCode.innerHTML = API_SAMPLES.get;
+renderHistory();
+initParticles();
+
+// ──────────────────────────────────────────
+// Platform detection on input
+// ──────────────────────────────────────────
+urlInput.addEventListener('input', () => {
+  const url = urlInput.value.trim();
+  const detected = detectPlatform(url);
+  if (detected) {
+    platformBadge.className = 'platform-badge show';
+    platformBadge.querySelector('i').className = detected.icon;
+    platformName.textContent = `${detected.name} detected`;
+    currentPlatform = detected;
+  } else {
+    platformBadge.className = 'platform-badge';
+    currentPlatform = null;
+  }
+});
+
+// Enter key triggers fetch
+urlInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') fetchMedia();
+});
+
+// ──────────────────────────────────────────
+// Detect platform from URL
+// ──────────────────────────────────────────
+function detectPlatform(url) {
+  if (!url) return null;
+  const lower = url.toLowerCase();
+  for (const [key, config] of Object.entries(PLATFORMS)) {
+    for (const pattern of config.patterns) {
+      if (pattern.test(lower)) return { key, ...config };
+    }
+  }
+  return null;
+}
+
+// ──────────────────────────────────────────
+// Fetch media 
+// ──────────────────────────────────────────
+async function fetchMedia() {
+  const url = urlInput.value.trim();
+  if (!url) {
+    showToast('Please paste a media URL first.', 'error');
+    urlInput.focus();
+    return;
+  }
+
+  const platform = detectPlatform(url);
+  if (!platform) {
+    showToast('Unsupported platform. Try Facebook, Instagram, TikTok, Twitter, Snapchat, or NASA.', 'error');
+    return;
+  }
+
+  // Disable button, show progress
+  btnFetch.disabled = true;
+  resultSection.classList.remove('show');
+  progressContainer.classList.add('show');
+
+  let lastError = null;
+  let data = null;
+  let usedEndpoint = null;
+
+  // ── Step 1: Check if we remember a working endpoint ──
+  const remembered = sessionStorage.getItem('ms_working_endpoint');
+  let endpointsToTry = [...API_CONFIG.endpoints];
+  
+  if (remembered && API_CONFIG.rememberWorking) {
+    // Put the remembered endpoint first
+    const idx = endpointsToTry.findIndex(e => e.url === remembered);
+    if (idx > 0) {
+      const [saved] = endpointsToTry.splice(idx, 1);
+      endpointsToTry.unshift(saved);
+    }
+  }
+
+  // ── Step 2: Try each endpoint until one works ──
+  for (const endpoint of endpointsToTry) {
+    try {
+      progressFill.style.width = '20%';
+      progressText.textContent = `Trying ${endpoint.name}...`;
+
+      const apiUrl = `${endpoint.url}?url=${encodeURIComponent(url)}`;
+      
+      // Create a timeout signal
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), endpoint.timeout);
+
+      const response = await fetch(apiUrl, {
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`${endpoint.name} returned status ${response.status}`);
+      }
+
+      data = await response.json();
+
+      // Check for API-level errors
+      if (data.error) {
+        throw new Error(data.message || data.error_message || 'API error');
+      }
+
+      // ── Success! ──
+      usedEndpoint = endpoint;
+      API_CONFIG.activeEndpoint = endpoint;
+      
+      // Remember this working endpoint for future requests
+      if (API_CONFIG.rememberWorking) {
+        sessionStorage.setItem('ms_working_endpoint', endpoint.url);
+      }
+
+      progressFill.style.width = '80%';
+      progressText.textContent = `${endpoint.name} responded!`;
+      break; // Exit the loop — we got data
+
+    } catch (error) {
+      // This endpoint failed — try the next one
+      console.warn(`${endpoint.name} failed:`, error.message);
+      lastError = error;
+      
+      // Don't show error toast yet — we might still have another endpoint to try
+      continue;
+    }
+  }
+
+  // ── Step 3: Process results or show error ──
+  progressFill.style.width = '100%';
+  
+  if (data && usedEndpoint) {
+    // We got results from one of the endpoints
+    showRealResults(platform, data, url);
+    addHistory(platform, url, data.total || data.data.length);
+    
+    const source = usedEndpoint.name;
+    showToast(`Found ${data.total || data.data.length} items via ${source}`, 'success');
+    
+    // Update status indicator
+    updateApiStatusIndicator(usedEndpoint);
+  } else {
+    // All endpoints failed
+    showToast(`All APIs failed: ${lastError?.message || 'Unknown error'}`, 'error');
+    updateApiStatusIndicator(null);
+  }
+
+  // Clean up UI
+  await sleep(200);
+  progressContainer.classList.remove('show');
+  progressFill.style.width = '0%';
+  btnFetch.disabled = false;
+}
+// showResults() removed — using showRealResults() only
+function showRealResults(platform, apiData, url) {
+  const mediaUrls = apiData.data || [];
+  const total = apiData.total || mediaUrls.length;
+
+  resultTitle.textContent = `${platform.name} Media`;
+  resultCount.textContent = `${total} item${total !== 1 ? 's' : ''}`;
+  mediaGrid.innerHTML = '';
+
+  // Handle empty results
+  if (mediaUrls.length === 0) {
+    mediaGrid.innerHTML = `
+      <div class="media-empty">
+        <i class="fas fa-inbox"></i>
+        <p>No media found for this URL.</p>
+        <p style="font-size:0.8rem; margin-top:6px;">The content might be private, deleted, or in an unsupported format.</p>
+      </div>`;
+    resultSection.classList.add('show');
+    resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+
+  mediaUrls.forEach((mediaUrl, i) => {
+    const detectedType = detectMediaType(mediaUrl);
+    const isVideo = detectedType === 'video';
+    const isImage = detectedType === 'image';
+    const filename = mediaUrl.split('/').pop().split('?')[0] || `media_${i + 1}`;
+
+    const card = document.createElement('div');
+    card.className = 'media-card';
+    card.style.animationDelay = `${i * 0.08}s`;
+
+    // Build thumbnail area — use data-url instead of inline URL in onclick
+    let thumbHtml = '';
+    if (isImage) {
+      thumbHtml = `
+        <img class="media-thumb"
+             src="${escHtml(mediaUrl)}"
+             alt="${escHtml(filename)}"
+             loading="lazy"
+             onerror="this.outerHTML=this.dataset.fallback" data-fallback='<div class="media-thumb-placeholder"><i class="fas fa-image"></i></div>' />`;
+    } else if (isVideo) {
+      thumbHtml = `
+        <div class="video-thumb-wrap" data-url="${escAttr(mediaUrl)}" onclick="previewVideo(this)">
+          <i class="fas fa-play-circle video-play-icon"></i>
+          <span class="video-badge">VIDEO</span>
+        </div>`;
+    } else {
+      thumbHtml = `
+        <div class="media-thumb-placeholder" data-url="${escAttr(mediaUrl)}" style="cursor:pointer;" onclick="window.open(this.dataset.url, '_blank')">
+          <i class="fas fa-file-download" style="font-size:2rem;"></i>
+          <span style="display:block; font-size:0.7rem; margin-top:6px;">Unknown format</span>
+        </div>`;
+    }
+
+    // Build type label
+    const typeLabel = isVideo ? 'Video' : isImage ? 'Image' : 'Media';
+    const typeIcon = isVideo
+      ? '<i class="fas fa-play" style="font-size:8px;margin-right:4px"></i>'
+      : '<i class="fas fa-image" style="font-size:8px;margin-right:4px"></i>';
+
+    card.innerHTML = `
+      ${thumbHtml}
+      <div class="media-info">
+        <span class="media-type ${isVideo ? 'video' : 'image'}">${typeIcon}${typeLabel}</span>
+        <a class="btn-save" href="${escAttr(mediaUrl)}" target="_blank" rel="noopener" download>
+          <i class="fas fa-download"></i> Save
+        </a>
+      </div>
+    `;
+    mediaGrid.appendChild(card);
+  });
+
+  resultSection.classList.add('show');
+  resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function previewVideo(wrapEl) {
+  // Read URL from data attribute — avoids XSS from inline handlers
+  const url = wrapEl.dataset.url;
+  if (!url) return;
+
+  const video = document.createElement('video');
+  video.className = 'media-thumb';
+  video.style.aspectRatio = '16/10';
+  video.controls = true;
+  video.autoplay = true;
+  video.src = url;
+  video.onerror = function() {
+    this.outerHTML = `<div class="media-thumb-placeholder" style="aspect-ratio:16/10">
+      <i class="fas fa-exclamation-triangle" style="font-size:1.5rem; color:var(--error);"></i>
+      <span style="display:block; font-size:0.7rem; margin-top:6px;">Preview failed — try the Save button</span>
+    </div>`;
+  };
+
+  wrapEl.replaceWith(video);
+}
+// saveMedia() removed — using direct <a download> links
+
+// ──────────────────────────────────────────
+// History management
+// ──────────────────────────────────────────
+function addHistory(platform, url, count) {
+  const entry = {
+    platform: platform.key,
+    cls: platform.cls,
+    icon: platform.icon,
+    name: platform.name,
+    url: url,
+    count: count,
+    time: Date.now()
+  };
+  history.unshift(entry);
+  if (history.length > 20) history = history.slice(0, 20);
+  localStorage.setItem('ms_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  if (history.length === 0) {
+    historyList.innerHTML = `
+      <div class="history-empty">
+        <i class="fas fa-clock-rotate-left"></i>
+        No downloads yet. Paste a URL above to get started.
+      </div>`;
+    return;
+  }
+
+  historyList.innerHTML = history.map(h => {
+    const ago = timeAgo(h.time);
+    return `
+      <div class="history-item">
+        <div class="history-icon ${h.cls}"><i class="${h.icon}"></i></div>
+        <div class="history-details">
+          <div class="history-url">${escHtml(h.url)}</div>
+          <div class="history-time">${h.name} &middot; ${ago}</div>
+        </div>
+        <div class="history-count">${h.count} file${h.count !== 1 ? 's' : ''}</div>
+      </div>`;
+  }).join('');
+}
+
+function clearHistory() {
+  history = [];
+  localStorage.removeItem('ms_history');
+  renderHistory();
+  showToast('History cleared', 'info');
+}
+function detectMediaType(url) {
+  if (!url || typeof url !== 'string') return 'image';
+
+  const lower = url.toLowerCase();
+
+  // 1. Check file extension at the very end (before query params)
+  const pathPart = lower.split('?')[0].split('#')[0];
+  const extMatch = pathPart.match(/\.(mp4|webm|mov|avi|mkv|m3u8|mpd)(\/)?$/);
+  if (extMatch) return 'video';
+
+  const imgMatch = pathPart.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)(\/)?$/);
+  if (imgMatch) return 'image';
+
+  // 2. Check URL path for video keywords
+  const videoKeywords = [
+    '/video/', '/videos/', '/v/', '/play/',
+    '/reel/', '/reels/', '/watch',
+    'tiktok.com', 'vm.tiktok.com',
+    '/live/', '/stream/', '/hls/',
+    '.m3u8', '.mpd', 'dash',
+    'video_url',
+    'playback', 'playlist',
+    'cdn-video', 'video-api'
+  ];
+  for (const kw of videoKeywords) {
+    if (lower.includes(kw)) return 'video';
+  }
+
+  // 3. Check URL path for image keywords
+  const imageKeywords = [
+    '/photo/', '/photos/', '/image/', '/images/',
+    '/p/', '/thumb/', '/thumbnail/',
+    'scontent', 'cdninstagram', 'fbcdn',
+    'jpg', 'jpeg', 'png', 'webp',
+    'profile_pic', 'avatar'
+  ];
+  for (const kw of imageKeywords) {
+    if (lower.includes(kw)) return 'image';
+  }
+
+  // 4. Platform-based heuristics
+  if (lower.includes('tiktok') || lower.includes('vm.tiktok')) return 'video';
+  if (lower.includes('snapchat') && lower.includes('spotlight')) return 'video';
+
+  // 5. Default: unknown — try video since that's the main use case
+  return 'unknown';
+}
+// ──────────────────────────────────────────
+// API tab switching
+// ──────────────────────────────────────────
+function switchApiTab(tab, el) {
+  document.querySelectorAll('.api-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  apiCode.innerHTML = API_SAMPLES[tab];
+}
+
+function scrollToApi() {
+  document.getElementById('apiSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ──────────────────────────────────────────
+// Modal
+// ──────────────────────────────────────────
+function showModal(title, body) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').textContent = body;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ──────────────────────────────────────────
+// Toast system
+// ──────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+  toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i>${escHtml(msg)}`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('out');
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
+// ──────────────────────────────────────────
+// Utilities
+// ──────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Escape for HTML attribute context (handles quotes properly)
+function escAttr(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// ──────────────────────────────────────────
+// API Source Toggle
+// ──────────────────────────────────────────
+let apiSourcePreference = 'auto';
+
+function setApiSource(source) {
+  apiSourcePreference = source;
+
+  // Update button styles
+  document.querySelectorAll('.api-source-btn').forEach(btn => {
+    if (btn.dataset.source === source) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  // Rebuild endpoints list based on preference
+  if (source === 'hosted') {
+    API_CONFIG.endpoints = [
+      { name: 'Hosted API', url: 'https://mediasaver.link/api/', timeout: 8000 }
+    ];
+  } else if (source === 'local') {
+    API_CONFIG.endpoints = [
+      { name: 'Local API', url: 'http://127.0.0.1:8080/api/', timeout: 3000 }
+    ];
+  } else {
+    // Auto: try both with fallback
+    API_CONFIG.endpoints = [
+      { name: 'Hosted API', url: 'https://mediasaver.link/api/', timeout: 8000 },
+      { name: 'Local API', url: 'http://127.0.0.1:8000/api/', timeout: 3000 }
+    ];
+  }
+
+  sessionStorage.removeItem('ms_working_endpoint');
+  showToast(`API source: ${source.charAt(0).toUpperCase() + source.slice(1)}`, 'info');
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return 'just now';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+// ──────────────────────────────────────────
+// Particle system on canvas
+// ──────────────────────────────────────────
+function initParticles() {
+  const canvas = document.getElementById('particleCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h, particles = [];
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Create particles
+  const PARTICLE_COUNT = 60;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particles.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.5 + 0.5,
+      alpha: Math.random() * 0.3 + 0.05
+    });
+  }
+
+  let mouseX = -1000, mouseY = -1000;
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+
+    // Draw connections
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 150) {
+          const alpha = (1 - dist / 150) * 0.08;
+          ctx.strokeStyle = `rgba(255, 107, 61, ${alpha})`;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw particles and update
+    for (const p of particles) {
+      // Mouse repulsion
+      const dmx = p.x - mouseX;
+      const dmy = p.y - mouseY;
+      const dmDist = Math.sqrt(dmx * dmx + dmy * dmy);
+      if (dmDist < 120 && dmDist > 0) {
+        const force = (120 - dmDist) / 120 * 0.8;
+        p.vx += (dmx / dmDist) * force;
+        p.vy += (dmy / dmDist) * force;
+      }
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Damping
+      p.vx *= 0.99;
+      p.vy *= 0.99;
+
+      // Wrap around
+      if (p.x < 0) p.x = w;
+      if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h;
+      if (p.y > h) p.y = 0;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(0.1, p.r), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 107, 61, ${p.alpha})`;
+      ctx.fill();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+}
+function updateApiStatusIndicator(endpoint) {
+  const statusBar = document.getElementById('apiStatusBar');
+  const statusText = document.getElementById('apiStatusText');
+  const statusIcon = statusBar.querySelector('i');
+  
+  if (!statusBar) return;
+  
+  if (endpoint) {
+    const isLocal = endpoint.url.includes('localhost');
+    const color = isLocal ? 'var(--success)' : 'var(--accent)';
+    const label = isLocal ? 'Local Server' : 'Cloud Server';
+    const icon = isLocal ? 'fa-laptop-code' : 'fa-cloud';
+    
+    statusBar.style.borderColor = `rgba(${isLocal ? '52,211,153' : '255,107,61'}, 0.2)`;
+    statusBar.style.background = `rgba(${isLocal ? '52,211,153' : '255,107,61'}, 0.05)`;
+    statusIcon.className = `fas ${icon}`;
+    statusIcon.style.color = color;
+    statusText.textContent = `Connected via ${label}`;
+    statusText.style.color = color;
+  } else {
+    statusBar.style.borderColor = 'rgba(248,113,113,0.2)';
+    statusBar.style.background = 'rgba(248,113,113,0.05)';
+    statusIcon.className = 'fas fa-exclamation-triangle';
+    statusIcon.style.color = 'var(--error)';
+    statusText.textContent = 'No API available — check connection';
+    statusText.style.color = 'var(--error)';
+  }
+}
+
+function resetApiPreference() {
+  sessionStorage.removeItem('ms_working_endpoint');
+  API_CONFIG.activeEndpoint = null;
+  const statusText = document.getElementById('apiStatusText');
+  const statusBar = document.getElementById('apiStatusBar');
+  const statusIcon = statusBar?.querySelector('i');
+  if (statusText) statusText.textContent = 'Preference reset — will auto-detect on next fetch';
+  if (statusIcon) statusIcon.className = 'fas fa-server';
+  if (statusIcon) statusIcon.style.color = 'var(--fg-muted)';
+  if (statusBar) {
+    statusBar.style.borderColor = 'var(--border)';
+    statusBar.style.background = 'var(--bg-elevated)';
+  }
+  showToast('API preference reset', 'info');
+}
+
+// Auto-check on page load — lightweight health check
+async function checkApiAvailability() {
+  const statusText = document.getElementById('apiStatusText');
+  const statusBar = document.getElementById('apiStatusBar');
+  const statusIcon = statusBar?.querySelector('i');
+
+  if (!statusText || !statusBar) return;
+  statusText.textContent = 'Checking API...';
+
+  // Use HEAD request for lighter check (no API quota used)
+  for (const endpoint of API_CONFIG.endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      // Try HEAD first (lightest), fall back to GET if not supported
+      let response;
+      try {
+        response = await fetch(endpoint.url, {
+          method: 'HEAD',
+          signal: controller.signal
+        });
+      } catch (headErr) {
+        // HEAD not supported — try GET with a minimal URL
+        clearTimeout(timeoutId);
+        const ctrl2 = new AbortController();
+        const tid2 = setTimeout(() => ctrl2.abort(), 4000);
+        response = await fetch(endpoint.url + '?url=https://example.com', {
+          signal: ctrl2.signal
+        });
+        clearTimeout(tid2);
+      }
+
+      clearTimeout(timeoutId);
+
+      // Any response (even 400) means the server is alive
+      if (response || response.status === 400) {
+        updateApiStatusIndicator(endpoint);
+        API_CONFIG.activeEndpoint = endpoint;
+        if (API_CONFIG.rememberWorking) {
+          sessionStorage.setItem('ms_working_endpoint', endpoint.url);
+        }
+        return;
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+
+  updateApiStatusIndicator(null);
+}
+
+// Run the check when page loads
+checkApiAvailability();
+</script>
+</body>
+</html>
